@@ -174,6 +174,10 @@ function buscador_proyectos_shortcode() {
                 <select id="filtro_comunidad" onchange="buscarProyectos()">
                     <option value="">Todas las comunidades</option>
                 </select>
+                <button id="btn-volver-todos" style="display: none; margin-top: 10px;">
+                    Mostrar todos los proyectos
+                </button>
+
                 <div class="tabla-container">
                     <table id="tabla-proyectos">
                         <thead>
@@ -328,7 +332,7 @@ function buscador_proyectos_shortcode() {
             function posicionarPopup(event) {
                 const popupHeight = popup.offsetHeight;
                 const popupWidth = popup.offsetWidth;
-                const padding = 15;
+                const padding = 10;
 
                 let top, left;
 
@@ -377,7 +381,7 @@ function buscador_proyectos_shortcode() {
             filas.forEach(fila => {
                 fila.addEventListener("click", function(event) {
                     event.stopPropagation();
-                    
+                    unhighlightAllTableRows() 
                     // Handle popup logic
                     if (isPopupFixed) {
                         const closeButton = document.getElementById("popup-close");
@@ -386,7 +390,7 @@ function buscador_proyectos_shortcode() {
                         }
 
                         popup.style.border = "1px solid #ccc";
-                        popup.style.backgroundColor = "rgba(255, 255, 255, 0.95)";
+                        popup.style.backgroundColor = " #F4E8C8";
                         popup.style.display = "none";
                         isPopupFixed = false;
                         
@@ -454,19 +458,24 @@ function buscador_proyectos_shortcode() {
                         popup.appendChild(closeButton);
 
                         popup.style.border = "2px solid #324093";
-                        popup.style.backgroundColor = "rgba(255, 255, 255, 1)";
+                        popup.style.backgroundColor = "#F4E8C8";
                         isPopupFixed = true;
                     }
                     
                     // Get project name from the first cell
                     const projectName = fila.querySelector('td:first-child').textContent.trim();
-                    
-                    // Reset any previously highlighted row
                     resetRowHighlight();
+                    if (window.projectNetwork) {
+                        window.projectNetwork.selectNodes([projectName]);
+                        window.projectNetwork.emit('selectNode', { nodes: [projectName] });
+                    }
+
+                    // Reset any previously highlighted row
+                    
                     
                     // Highlight the row and store reference
                     fila.style.backgroundColor = 'rgb(255, 197, 197)';
-                    fila.style.border = '2px solid #FF5733';
+                    fila.style.border = '2px solid #324093';
                     currentHighlightedRow = fila;
                     
                     // Focus on the node and highlight it
@@ -478,6 +487,7 @@ function buscador_proyectos_shortcode() {
                         highlightNode(projectName);
 
                     }
+
 
                 });
             });
@@ -703,6 +713,20 @@ function buscador_proyectos_shortcode() {
 
                         document.getElementById("busqueda").value = '';
                         document.getElementById("filtro_comunidad").selectedIndex = 0;
+                        document.getElementById("btn-volver-todos").style.display = "inline-block";
+
+                        document.getElementById("btn-volver-todos").addEventListener("click", function() {
+                            // Restablecer filtros si es necesario
+                            document.getElementById("busqueda").value = '';
+                            document.getElementById("filtro_comunidad").selectedIndex = 0;
+
+                            // Ocultar el botón de volver
+                            this.style.display = "none";
+
+                            // Volver a cargar todos los proyectos
+                            buscarProyectos();
+                        });
+
 
                         const tableBody = document.querySelector("#tabla-proyectos tbody");
                         tableBody.innerHTML = ''; // limpiar
@@ -733,6 +757,32 @@ function buscador_proyectos_shortcode() {
 
                         asignarEventosPopup();
                         generateGraph(relacionados, allProjectsData, "network-container-buscador");
+                        setTimeout(() => {
+                            if (window.projectNetwork && window.projectNetwork.body && window.projectNetwork.body.data) {
+                                const nodes = window.projectNetwork.body.data.nodes;
+                                const connected = window.projectNetwork.getConnectedNodes(nodeId);
+
+                                // Aumentar tamaño del nodo principal
+                                nodes.update({
+                                    id: nodeId,
+                                    size: 35,
+                                    borderWidth: 3,
+                                    color: 'rgb(252, 62, 62)'
+                                });
+
+                                // Opcional: aumentar tamaño de nodos conectados
+                                connected.forEach(id => {
+                                    nodes.update({
+                                        id,
+                                        size: 20
+                                    });
+                                });
+                            }
+                        }, 100); // puedes ajustar el delay si fuera necesario
+
+
+                        highlightTableRow(nodeId); 
+
 
                         selectedNodeId = nodeId;
                     }
@@ -771,7 +821,7 @@ function buscador_proyectos_shortcode() {
                     // Aplicar estilos de resaltado
                     row.classList.add("highlighted-row");
                     row.style.backgroundColor = '#f8f9fa';
-                    row.style.border = '2px solid rgb(252, 62, 62)';
+                    row.style.border = '2px solid #324093';
                     cell.style.fontWeight = 'bold';
                     
                     // Obtener el contenedor de la tabla que tiene scroll
@@ -784,9 +834,8 @@ function buscador_proyectos_shortcode() {
                         const rowRect = row.getBoundingClientRect();
                         const containerRect = tableContainer.getBoundingClientRect();
                         
-                        // Calcular dónde debe estar el scroll para que la fila sea visible
                         // Restamos un poco para que no quede exactamente al borde
-                        const scrollTop = row.offsetTop - tableContainer.offsetTop - (containerRect.height / 4);
+                        const scrollTop = row.offsetTop - tableContainer.offsetTop - 4;
                         
                         // Desplazar suavemente al punto calculado
                         tableContainer.scrollTo({
@@ -804,7 +853,7 @@ function buscador_proyectos_shortcode() {
                 // Obtener todos los nodos conectados (palabras clave para este proyecto)
                 const connectedNodes = network.getConnectedNodes(nodeId);
                 
-                // Resaltar el nodo con TU COLOR PREFERIDO
+                // Resaltar el nodo
                 nodes.update({
                     id: nodeId,
                     color: 'rgb(252, 62, 62)', // Cambia este color al que prefieras (rojo en este ejemplo)
@@ -845,20 +894,9 @@ function buscador_proyectos_shortcode() {
                     }
                 });
                 
-                // Reset all edges
-                // edges.forEach(edge => {
-                //     edges.update({
-                //         id: edge.id,
-                //         color: { color: '#888888', opacity: 0.7 },
-                //         width: 1.5
-                //     });
-                // });
-                
-                // Remove highlighting from table rows
                 resetTableHighlights();
                 
-                // highlightActive = false;  // Variable no utilizada, comentada
-                // highlightedNode = null;   // Variable no utilizada, comentada
+
             }
 
             // Adjust the layout when the graph is stable
@@ -939,7 +977,7 @@ function buscador_proyectos_shortcode() {
                         // Usar classList para añadir la clase
                         foundRow.classList.add("highlighted-row");
                         foundRow.style.backgroundColor = 'rgb(255, 197, 197)';
-                        foundRow.style.border = '2px solid #FF5733';
+                        foundRow.style.border = '2px solid  #324093';
                         
                         // Obtener el contenedor de la tabla (donde queremos hacer scroll)
                         const tableContainer = document.querySelector("#tabla-proyectos").closest('.table-container') || 
@@ -950,8 +988,8 @@ function buscador_proyectos_shortcode() {
                         const containerRect = tableContainer.getBoundingClientRect();
                         
                         // Calcular la posición a la que hacer scroll
-                        const scrollTop = tableContainer.scrollTop + (rowRect.top - containerRect.top) - 
-                                        (containerRect.height / 2) + (rowRect.height / 2);
+                        const scrollTop = row.offsetTop - tableContainer.offsetTop - 4;
+
                         
                         // Hacer scroll en el contenedor de la tabla, no en toda la página
                         tableContainer.scrollTop = scrollTop;
@@ -1038,6 +1076,17 @@ function buscador_proyectos_shortcode() {
             });
         }
 
+        function unhighlightAllTableRows() {
+            const rows = document.querySelectorAll('#tabla-proyectos tbody tr');
+            rows.forEach(row => {
+                row.style.backgroundColor = '';
+                row.style.border = '';
+            });
+            currentHighlightedRow = null;
+        }
+        
+
+
 
 
     </script>
@@ -1086,6 +1135,29 @@ function buscador_proyectos_shortcode() {
             margin-top: 45px; /* Ajusta el valor según lo necesites */
 
         }
+        #busqueda,
+        #filtro_comunidad, #btn-volver-todos {
+            font-size: 1.2em;
+            padding: 8px 12px;
+            background-color: #F4E8C8;  /* color personalizado */
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            color: #324093;
+            outline: none;
+            transition: box-shadow 0.2s ease;
+            margin-bottom: 10px; 
+
+        }
+
+        #busqueda::placeholder {
+            color: #324093;
+        }
+
+        #busqueda:focus,
+        #filtro_comunidad:focus {
+            box-shadow: 0 0 5px rgba(50, 64, 147, 0.5);  /* sombra azul al enfocar */
+            border-color: #324093;  /* azul más fuerte */
+        }
         .tabla-container {
             max-height: 1115px;
             overflow-y: auto;
@@ -1117,7 +1189,7 @@ function buscador_proyectos_shortcode() {
 
         #popup-info {
             position: fixed; /* Cambiar de absolute a fixed */
-            background: rgba(255, 255, 255, 0.95);
+            background: #F4E8C8;
             border: 1px solid #ccc;
             padding: 10px;
             box-shadow: 2px 2px 10px rgba(0,0,0,0.2);
