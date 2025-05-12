@@ -478,17 +478,7 @@ function buscador_proyectos_shortcode() {
                         highlightNode(projectName);
 
                     }
-                    if (window.projectNetwork) {
-                        // Cierra el popup al hacer clic en cualquier parte del grafo
-                        window.projectNetwork.on("click", function (params) {
-                            const popup = document.getElementById("popup-info");
-                            const closeButton = document.getElementById("popup-close");
 
-                            if (popup && closeButton) {
-                                closeButton.click();
-                            }
-                        });
-                    }
                 });
             });
             
@@ -875,6 +865,17 @@ function buscador_proyectos_shortcode() {
             network.on('stabilizationIterationsDone', function() {
                 network.setOptions({ physics: false });
             });
+            if (window.projectNetwork) {
+                // Cierra el popup al hacer clic en cualquier parte del grafo
+                window.projectNetwork.on("click", function (params) {
+                    const popup = document.getElementById("popup-info");
+                    const closeButton = document.getElementById("popup-close");
+
+                    if (popup && closeButton) {
+                        closeButton.click();
+                    }
+                });
+            }
             
             return network;
         }
@@ -896,13 +897,6 @@ function buscador_proyectos_shortcode() {
 
             return relatedProjects.map(p => p.nombre);
         }
-
-
-
-
-
-
-
 
         //==============================================================================
         // FUNCION PARA BUSCAR LA FILA Y SCROLEAR HASTA ELLA - FUNCION QUE VA LENTA CREO
@@ -973,20 +967,20 @@ function buscador_proyectos_shortcode() {
         }
         //=============================================================
 
-        // Función para mostrar indicador de carga
-        function showLoadingIndicator() {
-            const loader = document.getElementById('loading-indicator');
-            if (loader) {
-                loader.style.display = 'block';
-            }
-        }
+        // // Función para mostrar indicador de carga
+        // function showLoadingIndicator() {
+        //     const loader = document.getElementById('loading-indicator');
+        //     if (loader) {
+        //         loader.style.display = 'block';
+        //     }
+        // }
 
-        function hideLoadingIndicator() {
-            const loader = document.getElementById('loading-indicator');
-            if (loader) {
-                loader.style.display = 'none';
-            }
-        }
+        // function hideLoadingIndicator() {
+        //     const loader = document.getElementById('loading-indicator');
+        //     if (loader) {
+        //         loader.style.display = 'none';
+        //     }
+        // }
 
         //=============================================================
         // Función para resetear los nodos destacados en el grafo
