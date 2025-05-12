@@ -1,0 +1,16 @@
+# Ignorar todo excepto nuestro plugin o tema
+/wp-admin/
+/wp-includes/
+/wp-content/uploads/
+/wp-content/cache/
+/wp-content/plugins/hello.php
+/wp-content/plugins/akismet/
+
+# Si usas un plugin propio:
+!/wp-content/plugins/mi-plugin-personalizado/**
+
+# O si es un tema:
+!/wp-content/themes/mi-tema-personalizado/**
+
+*.csv
+*.css
