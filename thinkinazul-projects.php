@@ -7,9 +7,9 @@ Author: CTN
 */
 
 function crear_tabla_proyectos() {
-    global $wpdb;
-    $tabla_proyectos = $wpdb->prefix . 'proyectos'; // Prefijo dinámico para evitar conflictos
-    $charset_collate = $wpdb->get_charset_collate();
+    global $wpdb; # Objeto de acceso a la base de datos
+    $tabla_proyectos = $wpdb->prefix . 'proyectos'; // Crea nombre de la tabla
+    $charset_collate = $wpdb->get_charset_collate(); // Obtener los caracteres utfmb4 y tal, compatibilidad
 
     $sql = "CREATE TABLE $tabla_proyectos (
         id INT NOT NULL AUTO_INCREMENT,
@@ -25,10 +25,10 @@ function crear_tabla_proyectos() {
         linea_actuacion VARCHAR(255) NOT NULL,
         puntuacion VARCHAR(255) NOT NULL,
         PRIMARY KEY (id)
-    ) $charset_collate;";
+    ) $charset_collate;"; // SQL que creea la tabla
 
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-    dbDelta($sql);
+    dbDelta($sql); // ejecuta el comando sql, si no existe la tabla la crea y si existe y es diferente la actualiza
 
     importar_proyectos_csv(); // Llamamos a la función de importación
 }
@@ -36,30 +36,88 @@ function crear_tabla_proyectos() {
 register_activation_hook(__FILE__, 'crear_tabla_proyectos');
 
 // ===========================================================================================================
+// function insertar_proyecto_manual($datos) {
+//     global $wpdb;
+//     $tabla = $wpdb->prefix . 'proyectos';
 
+//     // Verifica que estén los campos mínimos necesarios
+//     if (empty($datos['nombre_proyecto']) || empty($datos['marca_temporal'])) {
+//         return false;
+//     }
+
+//     // Convertir fecha al formato MySQL si es necesario
+//     $fecha_obj = DateTime::createFromFormat('d/m/Y H:i:s', $datos['marca_temporal']);
+//     if (!$fecha_obj) return false;
+
+//     $fecha_mysql = $fecha_obj->format('Y-m-d H:i:s');
+
+//     // Comprobar si ya existe
+//     $existe = $wpdb->get_var($wpdb->prepare(
+//         "SELECT COUNT(*) FROM $tabla WHERE nombre_proyecto = %s AND marca_temporal = %s",
+//         $datos['nombre_proyecto'], $fecha_mysql
+//     ));
+
+//     if ($existe) return false;
+
+//     // Insertar
+//     return $wpdb->insert($tabla, [
+//         'marca_temporal'     => $fecha_mysql,
+//         'nombre_proyecto'    => sanitize_text_field($datos['nombre_proyecto']),
+//         'persona_contacto'   => sanitize_text_field($datos['persona_contacto']),
+//         'institucion'        => sanitize_text_field($datos['institucion']),
+//         'direccion_postal'   => sanitize_text_field($datos['direccion_postal']),
+//         'comunidad_autonoma' => sanitize_text_field($datos['comunidad_autonoma']),
+//         'email'              => sanitize_email($datos['email']),
+//         'palabras_clave'     => sanitize_text_field($datos['palabras_clave']),
+//         'resumen'            => sanitize_textarea_field($datos['resumen']),
+//         'linea_actuacion'    => sanitize_text_field($datos['linea_actuacion']),
+//         'puntuacion'         => sanitize_text_field($datos['puntuacion']),
+//     ]);
+// }
+// //====================================================================
+
+// add_action('init', function () {
+//     if (isset($_GET['insertar_nuevo'])) {
+//         $nuevo = [
+//             'marca_temporal'     => '13/05/2025 13:32:00',
+//             'nombre_proyecto'    => 'Clasificador de Eventos Acústicos Submarinos',
+//             'persona_contacto'   => 'Rosa Martínez Álvarez-Castellanos',
+//             'institucion'        => 'Centro Tecnológico Naval y del Mar',
+//             'direccion_postal'   => 'Ctra. El Estrecho-Lobosillo Fuente Álamo',
+//             'comunidad_autonoma' => 'Región de Murcia',
+//             'email'              => 'rosamartinez@ctnaval.com',
+//             'palabras_clave'     => 'ciencia de datos, clasificación, modelo, observación, IA, acústica, conservación',
+//             'resumen'            => 'Herramienta avanzada basada en inteligencia artificial (IA) que identifica y clasifica eventos acústicos submarinos, facilitando el monitoreo y la gestión de áreas marinas protegidas. Permite anticipar problemas, optimizar la respuesta y tomar decisiones informadas respaldadas por datos precisos. Gracias a la integración de GPUs de última generación, ofrece un rendimiento superior, acelerando el procesado de datos y modelos de IA. Este clasificador acústico transforma lo desconocido del entorno submarino en una oportunidad para proteger y gestionar ecosistemas clave.',
+//             'linea_actuacion'    => 'Línea de Actuación 1: Observación y Monitorización del medio marino y litoral',
+//             'puntuacion'         => '0',
+//         ];
+//         insertar_proyecto_manual($nuevo);
+//         exit('✅ Proyecto insertado');
+//     }
+// });
+
+//Ejecuto localhost/thinkin/?insertar_nuevo=1 para insertar el proyecto manualmente.
+//============================================================================
 
 function importar_proyectos_csv() {
-    if (get_option('proyectos_importados')) {
-        return;
-    }
     global $wpdb;
     $tabla_proyectos = $wpdb->prefix . 'proyectos';
 
     $archivo_csv = plugin_dir_path(__FILE__) . 'proyectos.csv';
 
     if (!file_exists($archivo_csv)) {
-        error_log('Error: No se encontró el archivo CSV en ' . $archivo_csv);
+        error_log(' No se encontró el archivo CSV en ' . $archivo_csv);
         return;
     }
 
     $handle = fopen($archivo_csv, "r");
-
     if (!$handle) {
-        error_log('Error: No se pudo abrir el archivo CSV.');
+        error_log(' No se pudo abrir el archivo CSV.');
         return;
     }
 
-    fgetcsv($handle, 1000, ","); // Saltar la primera fila (cabecera)
+    // Saltar la cabecera
+    fgetcsv($handle, 1000, ",");
 
     while (($datos = fgetcsv($handle, 1000, ",", '"')) !== FALSE) {
         if (count($datos) !== 11) {
@@ -67,44 +125,54 @@ function importar_proyectos_csv() {
             continue;
         }
 
-        // Convertir la fecha al formato MySQL (YYYY-MM-DD HH:MM:SS)
+        // Convertir fecha a formato MySQL
         $fecha_formateada = null;
         $fecha_objeto = DateTime::createFromFormat('d/m/Y H:i:s', $datos[0]);
         if ($fecha_objeto) {
             $fecha_formateada = $fecha_objeto->format('Y-m-d H:i:s');
         } else {
-            error_log("Error al convertir la fecha: " . $datos[0]);
-            continue; // Omitir la fila si hay error en la fecha
+            error_log(" Error al convertir la fecha: " . $datos[0]);
+            continue;
         }
 
+        // Verificar si ya existe este proyecto (por nombre + fecha)
+        $existe = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $tabla_proyectos WHERE nombre_proyecto = %s AND marca_temporal = %s",
+            $datos[1], $fecha_formateada
+        ));
+
+        if ($existe) {
+            continue; // Ya existe, saltar
+        }
+
+        // Insertar nuevo proyecto
         $wpdb->insert(
             $tabla_proyectos,
             [
-                'marca_temporal'   => $fecha_formateada, // Ahora la fecha es válida para MySQL
-                'nombre_proyecto'  => sanitize_text_field($datos[1]),
-                'persona_contacto' => sanitize_text_field($datos[2]),
-                'institucion'      => sanitize_text_field($datos[3]),
-                'direccion_postal' => sanitize_text_field($datos[4]),
+                'marca_temporal'     => $fecha_formateada,
+                'nombre_proyecto'    => sanitize_text_field($datos[1]),
+                'persona_contacto'   => sanitize_text_field($datos[2]),
+                'institucion'        => sanitize_text_field($datos[3]),
+                'direccion_postal'   => sanitize_text_field($datos[4]),
                 'comunidad_autonoma' => sanitize_text_field($datos[5]),
-                'email'            => sanitize_email($datos[6]),
-                'palabras_clave'   => sanitize_text_field($datos[7]),
-                'resumen'          => sanitize_textarea_field($datos[8]),
-                'linea_actuacion'  => sanitize_text_field($datos[9]),
-                'puntuacion'       => sanitize_text_field($datos[10]),
+                'email'              => sanitize_email($datos[6]),
+                'palabras_clave'     => sanitize_text_field($datos[7]),
+                'resumen'            => sanitize_textarea_field($datos[8]),
+                'linea_actuacion'    => sanitize_text_field($datos[9]),
+                'puntuacion'         => sanitize_text_field($datos[10]),
             ],
-            ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
+            ['%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s']
         );
     }
 
     fclose($handle);
-
-
-    update_option('proyectos_importados', true);
-
+    error_log(' Importación de proyectos completada.');
 }
 
+
+
 //=================================================================================================================================
-function thinkinazul_proyectos_scripts() {
+function thinkinazul_proyectos_scripts() { //estilos y js
     // Enqueue vis.js from CDN
     wp_enqueue_script('vis-network', 'https://unpkg.com/vis-network/standalone/umd/vis-network.min.js', array('jquery'), null, true);
     wp_enqueue_style('vis-network-css', 'https://unpkg.com/vis-network/styles/vis-network.min.css');
@@ -123,27 +191,21 @@ function buscador_proyectos_shortcode() {
     global $wpdb;
     $tabla_proyectos = $wpdb->prefix . 'proyectos';
     $proyectos = $wpdb->get_results("SELECT  id, nombre_proyecto, palabras_clave, persona_contacto, institucion, direccion_postal, email, resumen, linea_actuacion, puntuacion, comunidad_autonoma FROM $tabla_proyectos ORDER BY id ASC");
-
+    // obtenemos la lista completa de los proyectos , consulta bbdd
 
     // Prepare data for JavaScript
     $proyectos_data = array();
-    foreach ($proyectos as $index => $proyecto) {
+    foreach ($proyectos as $index => $proyecto) { //recorre todos los resultados de la consulta anterior 
 
-        $titles_map = [
+        $titles_map = [ //mapa que relaciona el titulo del proyecto con la ficha por su title
         'Ciencia de datos para la emergencia de inteligencia en el medio marino y litoral a través de la monitorización ambiental' => 'CIENCIADEDATOS',
         'OMEMAR' => 'OMEMAR',
-        'CEAS' => 'CEAS',
-        // Agrega aquí más proyectos según necesites
+        'Clasificador de Eventos Acústicos Submarinos' => 'CEAS',
+        
         ];
 
-        $title_param = isset($titles_map[$proyecto->nombre_proyecto]) ? $titles_map[$proyecto->nombre_proyecto] : null;
+        $title_param = isset($titles_map[$proyecto->nombre_proyecto]) ? $titles_map[$proyecto->nombre_proyecto] : null; //generamos la url a la que luego ira so coinciden los títulos 
         $ficha_url = $title_param ? "http://localhost/thinkin/index.php/resultados/radar-de-innovacion/?comunidad=all&linea=all&tematica=all&title=$title_param" : null;
-
-        // Define la URL de la ficha según el nombre del proyecto
-        // $ficha_url = null;
-        // if($proyecto->nombre_proyecto == 'Ciencia de datos para la emergencia de inteligencia en el medio marino y litoral a través de la monitorización ambiental') {
-        //     $ficha_url = 'http://localhost/thinkin/index.php/resultados/radar-de-innovacion/?comunidad=all&linea=all&tematica=all&title=CIENCIADEDATOS';
-        // }
 
         $proyectos_data[] = array(
             'id' => $index,
@@ -158,7 +220,7 @@ function buscador_proyectos_shortcode() {
             'puntuacion' => $proyecto->puntuacion,
             'comunidad' => $proyecto->comunidad_autonoma,
             'ficha' => $ficha_url
-        );
+        ); // para cada proyecto crea un array y liuego lo convierte en json
 
     }
     $proyectos_json = json_encode($proyectos_data);
@@ -170,7 +232,8 @@ function buscador_proyectos_shortcode() {
         <div id="buscador-proyectos">
             <!-- Contenedor de la tabla y el buscador -->
             <div class="panel-busqueda">
-                <input type="text" id="busqueda" placeholder="Buscar proyectos..." onkeyup="buscarProyectos()">
+                <input type="text" id="busqueda" placeholder="Buscar proyectos..." onkeyup="buscarProyectos()"> 
+                <!-- Buscador y select que cuando se tocan activan buscarProyectos -->
                 <select id="filtro_comunidad" onchange="buscarProyectos()">
                     <option value="">Todas las comunidades</option>
                 </select>
@@ -218,37 +281,25 @@ function buscador_proyectos_shortcode() {
     
     <script>
         // Store projects data for the graph generation
-        const proyectosData = <?php echo $proyectos_json; ?>;
+        const proyectosData = <?php echo $proyectos_json; ?>; //variable que contiene todos los proyectos json que antes guardamos
 
-        document.addEventListener("DOMContentLoaded", function() {
+        document.addEventListener("DOMContentLoaded", function() { // esto espera que el DOM este listo antes de cargar nada
             cargarComunidades();
 
             const urlParams = new URLSearchParams(window.location.search);
-            const buscarProyecto = urlParams.get("buscar");
+            const buscarProyecto = urlParams.get("buscar"); //vemos si la url tiene algo de buscar
 
             if (buscarProyecto) {
-                document.getElementById("busqueda").value = buscarProyecto;
+                document.getElementById("busqueda").value = buscarProyecto; // si tiene lo de buscar rellena el campo de busqueda
 
-                // Esperamos a que se carguen las comunidades y luego lanzamos la búsqueda
+                // Esperamos a que se carguen las comunidades (300) y luego lanzamos buscarProyectos
                 setTimeout(() => {
                     buscarProyectos();
-
-                    // Esperamos a que cargue la tabla y entonces simulamos clic en el proyecto
-                    const observer = new MutationObserver(function(mutations) {
-                        const filas = document.querySelectorAll(".fila-proyecto");
-                        filas.forEach(fila => {
-                            const nombre = fila.querySelector("td:first-child").textContent.trim();
-                            if (nombre.toLowerCase() === buscarProyecto.toLowerCase()) {
-                                fila.click(); // Simula clic para abrir popup y resaltar en grafo
-                            }
-                        });
-                        observer.disconnect(); // Solo queremos que se dispare una vez
-                    });
-
                     const tableBody = document.querySelector("#tabla-proyectos tbody");
                     observer.observe(tableBody, { childList: true });
                 }, 300); // Ajusta el timeout si hace falta
-            } else {
+
+            } else { //si nobuscamos tb todos los proyectos y se genera el grafo general
                 buscarProyectos();
                 const tableBody = document.querySelector("#tabla-proyectos tbody");
                 const observer = new MutationObserver(function(mutations) {
@@ -259,7 +310,7 @@ function buscador_proyectos_shortcode() {
         });
         
         //=======================================================================================
-        function cargarComunidades() {
+        function cargarComunidades() { //se ejecuta al principio, llama al ajax que obtiene la lista de comunidades
             fetch("<?php echo admin_url('admin-ajax.php?action=obtener_comunidades'); ?>")
                 .then(response => response.json())
                 .then(data => {
@@ -269,15 +320,15 @@ function buscador_proyectos_shortcode() {
                         option.value = comunidad;
                         option.textContent = comunidad;
                         select.appendChild(option);
-                    });
+                    }); //y crea el filtro
                 });
         }
 
         //===========================================================================================
 
         function buscarProyectos() {
-            let termino = document.getElementById("busqueda").value;
-            let comunidad = document.getElementById("filtro_comunidad").value;
+            let termino = document.getElementById("busqueda").value; //coge lo que hay en el buscador
+            let comunidad = document.getElementById("filtro_comunidad").value; //coge lo que hay en el select
 
             let formData = new FormData();
             formData.append("action", "buscar_proyectos");
@@ -298,19 +349,19 @@ function buscador_proyectos_shortcode() {
 
         //===============================================================================
         function generarGrafoDesdeTablaCargada() {
-            // Get the graph container
+            // contenedor de grafos
             const graficoContainer = document.getElementById("grafico-container-buscador");
 
-            // Always show the graph container
+            // siempre vsible
             graficoContainer.style.display = "block";
 
-            // Extract project names from the current table
+            // extrae los proyectos ed la tabla visible, para que cuando filtremos cambia el grafo
             const projectNames = Array.from(
                 document.querySelectorAll("#tabla-proyectos tbody tr td:nth-child(1)")
             ).map(td => td.textContent.trim());
 
             // Generate graph with current projects
-            generateGraph(projectNames, proyectosData, "network-container-buscador");
+            generateGraph(projectNames, proyectosData, "network-container-buscador"); //funcion que genera el grafo
         }
         //=================================================================================
 
@@ -328,7 +379,7 @@ function buscador_proyectos_shortcode() {
                 fila.parentNode.replaceChild(newFila, fila);
             });
 
-            // ----------------------------------------------Función para posicionar el popup inteligentemente
+            // =======================================================Función para posicionar el popup inteligentemente
             function posicionarPopup(event) {
                 const popupHeight = popup.offsetHeight;
                 const popupWidth = popup.offsetWidth;
@@ -381,9 +432,9 @@ function buscador_proyectos_shortcode() {
             filas.forEach(fila => {
                 fila.addEventListener("click", function(event) {
                     event.stopPropagation();
-                    unhighlightAllTableRows() 
+                    resetTableHighlights() 
                     // Handle popup logic
-                    if (isPopupFixed) {
+                    if (isPopupFixed) { // si esta abierto lo cierra el popup
                         const closeButton = document.getElementById("popup-close");
                         if (closeButton) {
                             closeButton.remove();
@@ -394,14 +445,15 @@ function buscador_proyectos_shortcode() {
                         popup.style.display = "none";
                         isPopupFixed = false;
                         
-                        // Reset row highlight when popup is closed
+                        // Reseteo de fila cuando se cierra
                         resetRowHighlight();
                         
                         // Reset graph node highlighting
                         if (window.projectNetwork) {
                             resetNodeHighlights();
                         }
-                        } else {
+                        
+                        } else { //si no lo llena
                         document.getElementById("popup-contacto").textContent = fila.dataset.contacto;
                         document.getElementById("popup-institucion").textContent = fila.dataset.institucion;
                         document.getElementById("popup-direccion").textContent = fila.dataset.direccion;
@@ -468,10 +520,7 @@ function buscador_proyectos_shortcode() {
                     if (window.projectNetwork) {
                         window.projectNetwork.selectNodes([projectName]);
                         window.projectNetwork.emit('selectNode', { nodes: [projectName] });
-                    }
-
-                    // Reset any previously highlighted row
-                    
+                    }                    
                     
                     // Highlight the row and store reference
                     fila.style.backgroundColor = 'rgb(255, 197, 197)';
@@ -492,7 +541,7 @@ function buscador_proyectos_shortcode() {
                 });
             });
             
-            // Keep the global click listener to close the popup when clicking elsewhere
+            // cerramos popup cuando pulsamos en cualquier lado y esta abierto
             document.addEventListener("click", function(event) {
                 if (!popup.contains(event.target) && isPopupFixed) {
                     const closeButton = document.getElementById("popup-close");
@@ -510,26 +559,26 @@ function buscador_proyectos_shortcode() {
             let comunidad = document.getElementById("filtro_comunidad").value;
 
             let formData = new FormData();
-            formData.append("action", "buscar_proyectos");
+            formData.append("action", "buscar_proyectos"); //va al ajax buscar proyectos con lo del buscador y el select
             formData.append("termino", termino);
             formData.append("comunidad", comunidad);
 
-            fetch("<?php echo admin_url('admin-ajax.php'); ?>", {
+            fetch("<?php echo admin_url('admin-ajax.php'); ?>", { //hace la peticion
                 method: "POST",
                 body: formData
             })
-            .then(response => response.text())
+            .then(response => response.text()) // le devueklve una respuesta html con las filas de la tabla
             .then(data => {
                 document.querySelector("#tabla-proyectos tbody").innerHTML = data;
-                asignarEventosPopup(); // Reasignar eventos después de cargar los datos
-                generarGrafoDesdeTablaCargada();
+                asignarEventosPopup(); // asigna los eventos popup 
+                generarGrafoDesdeTablaCargada(); //vuelve a generar el grafo con esas filas de tabla
             });
         }
         //========================================================================
 
         function generateGraph(selectedProjects, allProjectsData, containerId) {
             // Verificar que el contenedor existe
-            const container = document.getElementById(containerId);
+            const container = document.getElementById(containerId); //COMPROBAR QUE HAY CONTENEDOR
             if (!container) {
                 console.error(`El contenedor con ID ${containerId} no existe en el DOM`);
                 return null;
@@ -537,22 +586,20 @@ function buscador_proyectos_shortcode() {
 
             container.innerHTML = "";
 
-            // Verificar que tenemos datos
+            // COMPROBAR  que tenemos datos
             if (!allProjectsData || allProjectsData.length === 0) {
                 console.error("No hay datos de proyectos disponibles");
                 container.innerHTML = "<p>No se pudieron cargar los datos de proyectos</p>";
                 return null;
             }
 
-            console.log("project: ", allProjectsData[0]);
             // Filter projects based on selected project names
             const filteredProjects = allProjectsData.filter(project => 
                 selectedProjects.includes(project.nombre)
             );
-            console.log("Proyectos filtrados: ", filteredProjects);
 
             // Si no hay proyectos filtrados, mostrar mensaje
-            if (filteredProjects.length === 0) {
+            if (filteredProjects.length === 0) { // si no coincide ningun proyecto
                 console.error("No hay proyectos seleccionados");
                 container.innerHTML = "<p>Por favor seleccione al menos un proyecto</p>";
                 return null;
@@ -562,8 +609,7 @@ function buscador_proyectos_shortcode() {
             let allKeywords = [];
             let projectNames = [];
 
-            filteredProjects.forEach(project => {
-                console.log("proyecto: ", project);
+            filteredProjects.forEach(project => { // para cada proyecto
                 // Verificar que el proyecto tiene nombre y palabras clave
                 if (!project.nombre || !project.palabras_clave) {
                     console.warn("Proyecto sin nombre o palabras clave:", project);
@@ -574,11 +620,20 @@ function buscador_proyectos_shortcode() {
                 projectNames.push(project.nombre);
 
                 // Process keywords (split by comma and normalize)
-                const keywords = project.palabras_clave.split(',').map(kw => {
-                    // Remove accents and normalize 
-                    return kw.trim().toLowerCase()
-                        .normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // Remove accents
-                });
+                // Dentro del foreach
+                const cleanKeyword = kw =>
+                    kw
+                        .trim()
+                        .toLowerCase()
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '') // eliminar acentos
+                        .replace(/\s+/g, ' '); // reducir espacios múltiples
+
+                const keywords = project.palabras_clave.split(',').map(cleanKeyword).filter(kw => kw.length > 0);
+
+                allKeywords = allKeywords.concat(keywords);
+
+
 
                 // Add to all keywords
                 allKeywords = allKeywords.concat(keywords);
@@ -639,7 +694,7 @@ function buscador_proyectos_shortcode() {
                     kw.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
                 );
 
-                keywords.forEach(keyword => {
+                [...new Set(keywords)].forEach(keyword => {
                     edges.add({
                         from: projectName,
                         to: keyword,
@@ -682,7 +737,7 @@ function buscador_proyectos_shortcode() {
                 },
                 interaction: {
                     hover: true,
-                    navigationButtons: true,
+                    navigationButtons: false,
                     zoomView: true
                 }
             };
@@ -694,7 +749,7 @@ function buscador_proyectos_shortcode() {
             let selectedNodeId = null;
 
             // Definir resetTableHighlights que faltaba
-            function resetTableHighlights() {
+            function resetTableHighlights() { // Resetea el color de la tabla
                 const rows = document.querySelectorAll("#tabla-proyectos tbody tr.fila-proyecto");
                 rows.forEach(row => {
                     row.classList.remove("highlighted-row");
@@ -708,14 +763,14 @@ function buscador_proyectos_shortcode() {
                 if (params.nodes.length > 0) {
                     const nodeId = params.nodes[0];
 
-                    if (uniqueProjects.includes(nodeId)) {
-                        const relacionados = getRelatedProjects(nodeId, allProjectsData);
+                    if (uniqueProjects.includes(nodeId)) { // solo actuamos si es proyecto, no keyword
+                        const relacionados = getRelatedProjects(nodeId, allProjectsData); //obtenemos proyectos que dcomparten keyword
 
-                        document.getElementById("busqueda").value = '';
+                        document.getElementById("busqueda").value = ''; //limpiamos filttros  
                         document.getElementById("filtro_comunidad").selectedIndex = 0;
                         document.getElementById("btn-volver-todos").style.display = "inline-block";
 
-                        document.getElementById("btn-volver-todos").addEventListener("click", function() {
+                        document.getElementById("btn-volver-todos").addEventListener("click", function() { // si clickamos en este boton, lo quita y muestra todos los proyectos sin filtros
                             // Restablecer filtros si es necesario
                             document.getElementById("busqueda").value = '';
                             document.getElementById("filtro_comunidad").selectedIndex = 0;
@@ -732,9 +787,14 @@ function buscador_proyectos_shortcode() {
                         tableBody.innerHTML = ''; // limpiar
 
                         allProjectsData.forEach(p => {
-                            if (relacionados.includes(p.nombre)) {
+                            if (relacionados.includes(p.nombre) && p.nombre && p.comunidad ) { //solo mostramos con comunidad y nombre (evitar filas vacías)
                                 const fila = document.createElement("tr");
                                 fila.classList.add("fila-proyecto");
+                                if (!p.nombre.trim()) return;
+
+
+
+
                                 fila.setAttribute("data-contacto", p.contacto);
                                 fila.setAttribute("data-institucion", p.institucion);
                                 fila.setAttribute("data-direccion", p.direccion);
@@ -755,7 +815,7 @@ function buscador_proyectos_shortcode() {
                             }
                         });
 
-                        asignarEventosPopup();
+                        asignarEventosPopup(); //evento de popup y grafo
                         generateGraph(relacionados, allProjectsData, "network-container-buscador");
                         setTimeout(() => {
                             if (window.projectNetwork && window.projectNetwork.body && window.projectNetwork.body.data) {
@@ -778,7 +838,7 @@ function buscador_proyectos_shortcode() {
                                     });
                                 });
                             }
-                        }, 100); // puedes ajustar el delay si fuera necesario
+                        }, 90); // puedes ajustar el delay si fuera necesario
 
 
                         highlightTableRow(nodeId); 
@@ -790,25 +850,6 @@ function buscador_proyectos_shortcode() {
             });
 
 
-                    
-
-            function unhighlightNode(nodeId) {
-                network.body.data.nodes.update({ id: nodeId, color: undefined });
-            }
-            
-            function unhighlightTableRow(projectName) {
-                const cell = Array.from(
-                    document.querySelectorAll("#tabla-proyectos tbody tr.fila-proyecto td:first-child")
-                ).find(cell => cell.textContent.trim() === projectName);
-                
-                if (cell) {
-                    const row = cell.parentNode;
-                    row.classList.remove("highlighted-row");
-                    row.style.backgroundColor = '';
-                    row.style.border = '';
-                    cell.style.fontWeight = '';
-                }
-            }
 
             function highlightTableRow(projectName) {
                 const cell = Array.from(
@@ -820,7 +861,7 @@ function buscador_proyectos_shortcode() {
                     
                     // Aplicar estilos de resaltado
                     row.classList.add("highlighted-row");
-                    row.style.backgroundColor = '#f8f9fa';
+                    row.style.backgroundColor = 'rgb(230, 243, 255)';
                     row.style.border = '2px solid #324093';
                     cell.style.fontWeight = 'bold';
                     
@@ -917,19 +958,32 @@ function buscador_proyectos_shortcode() {
             
             return network;
         }
-        function getRelatedProjects(projectName, allProjectsData) {
-            const targetProject = allProjectsData.find(p => p.nombre === projectName);
-            if (!targetProject) return [];
 
-            const targetKeywords = targetProject.palabras_clave.split(',').map(kw =>
-                kw.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-            );
+        function getRelatedProjects(projectName, allProjectsData) { //esta funcion cuando pulsas un nodo se llama y asi da una lisa de los proyectos relacionados
+            const cleanKeyword = kw =>
+                kw
+                    .trim()
+                    .toLowerCase()
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '') // quitar acentos
+                    .replace(/\s+/g, ' '); // reducir espacios múltiples
+
+            const targetProject = allProjectsData.find(p => p.nombre === projectName);
+            if (!targetProject || !targetProject.palabras_clave) return [];
+
+            const targetKeywords = targetProject.palabras_clave
+                .split(',')
+                .map(cleanKeyword)
+                .filter(kw => kw.length > 0);
 
             const relatedProjects = allProjectsData.filter(p => {
-                if (p.nombre === projectName) return true; // incluir el propio
-                const keywords = p.palabras_clave.split(',').map(kw =>
-                    kw.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                );
+                if (p.nombre === projectName || !p.palabras_clave) return true;
+
+                const keywords = p.palabras_clave
+                    .split(',')
+                    .map(cleanKeyword)
+                    .filter(kw => kw.length > 0);
+
                 return keywords.some(kw => targetKeywords.includes(kw));
             });
 
@@ -939,86 +993,6 @@ function buscador_proyectos_shortcode() {
         //==============================================================================
         // FUNCION PARA BUSCAR LA FILA Y SCROLEAR HASTA ELLA - FUNCION QUE VA LENTA CREO
         let isSearchingRow = false;
-
-        // Función optimizada para buscar y resaltar filas
-        function highlightTableRow(projectName) {
-            // Si ya hay una búsqueda en progreso, cancelarla
-            if (isSearchingRow) return;
-            
-            // Activar estado de búsqueda
-            isSearchingRow = true;
-            
-            // Mostrar indicador de carga
-            showLoadingIndicator();
-            document.body.offsetHeight; // Forzar reflow para asegurar render antes del timeout
-
-            
-            // Usar setTimeout para dar tiempo al navegador a mostrar el indicador de carga
-            setTimeout(() => {
-                try {
-                    // Resetear resaltados previos usando una única operación de clase
-                    const previouslyHighlighted = document.querySelector("#tabla-proyectos tbody tr.highlighted-row");
-                    if (previouslyHighlighted) {
-                        previouslyHighlighted.classList.remove("highlighted-row");
-                        previouslyHighlighted.style.backgroundColor = '';
-                        previouslyHighlighted.style.border = '';
-                    }
-                    
-                    // Optimización: usar querySelector en lugar de querySelectorAll
-                    // Esto es más rápido porque se detiene en la primera coincidencia
-                    const foundCell = Array.from(
-                        document.querySelectorAll("#tabla-proyectos tbody tr.fila-proyecto td:first-child")
-                    ).find(cell => cell.textContent.trim() === projectName);
-                    
-                    // Si encontramos la celda, procesar su fila
-                    if (foundCell) {
-                        const foundRow = foundCell.parentNode;
-                        
-                        // Usar classList para añadir la clase
-                        foundRow.classList.add("highlighted-row");
-                        foundRow.style.backgroundColor = 'rgb(255, 197, 197)';
-                        foundRow.style.border = '2px solid  #324093';
-                        
-                        // Obtener el contenedor de la tabla (donde queremos hacer scroll)
-                        const tableContainer = document.querySelector("#tabla-proyectos").closest('.table-container') || 
-                                            document.querySelector("#tabla-proyectos").parentElement;
-                        
-                        // Calcular la posición de la fila respecto al contenedor
-                        const rowRect = foundRow.getBoundingClientRect();
-                        const containerRect = tableContainer.getBoundingClientRect();
-                        
-                        // Calcular la posición a la que hacer scroll
-                        const scrollTop = row.offsetTop - tableContainer.offsetTop - 4;
-
-                        
-                        // Hacer scroll en el contenedor de la tabla, no en toda la página
-                        tableContainer.scrollTop = scrollTop;
-                    }
-                } finally {
-                    // Ocultar indicador de carga
-                    hideLoadingIndicator();
-                    
-                    // Desactivar estado de búsqueda
-                    isSearchingRow = false;
-                }
-            }, 100); // Un pequeño retraso para permitir que el indicador de carga se muestre
-        }
-        //=============================================================
-
-        // // Función para mostrar indicador de carga
-        // function showLoadingIndicator() {
-        //     const loader = document.getElementById('loading-indicator');
-        //     if (loader) {
-        //         loader.style.display = 'block';
-        //     }
-        // }
-
-        // function hideLoadingIndicator() {
-        //     const loader = document.getElementById('loading-indicator');
-        //     if (loader) {
-        //         loader.style.display = 'none';
-        //     }
-        // }
 
         //=============================================================
         // Función para resetear los nodos destacados en el grafo
@@ -1074,19 +1048,9 @@ function buscador_proyectos_shortcode() {
                 row.style.backgroundColor = '';
                 row.style.border = '';
             });
-        }
-
-        function unhighlightAllTableRows() {
-            const rows = document.querySelectorAll('#tabla-proyectos tbody tr');
-            rows.forEach(row => {
-                row.style.backgroundColor = '';
-                row.style.border = '';
-            });
             currentHighlightedRow = null;
+
         }
-        
-
-
 
 
     </script>
@@ -1245,8 +1209,8 @@ function buscador_proyectos_shortcode() {
 }
 
 
-//========================================================================================================
 add_shortcode('buscador_proyectos', 'buscador_proyectos_shortcode');
+//========================================================================================================
 
 
 
@@ -1278,10 +1242,10 @@ function buscar_proyectos_ajax() {
     global $wpdb;
     $tabla_proyectos = $wpdb->prefix . 'proyectos';
 
-    $termino = isset($_POST['termino']) ? sanitize_text_field($_POST['termino']) : '';
+    $termino = isset($_POST['termino']) ? sanitize_text_field($_POST['termino']) : ''; // lo que le pasamos
     $comunidad = isset($_POST['comunidad']) ? sanitize_text_field($_POST['comunidad']) : '';
 
-    $query = "SELECT * FROM $tabla_proyectos WHERE 1=1";
+    $query = "SELECT * FROM $tabla_proyectos WHERE 1=1"; //petiicion a la base de datos donde coincida la busqueda y la comunidad
 
     if (!empty($termino)) {
         $query .= " AND (nombre_proyecto LIKE %s OR persona_contacto LIKE %s OR palabras_clave LIKE %s)";
@@ -1289,7 +1253,8 @@ function buscar_proyectos_ajax() {
 
     if (!empty($comunidad)) {
         $query .= " AND comunidad_autonoma = %s";
-    }
+    } // si no estan vacios añade unas consicionesa los filtros, ya que no tiene que ser coincidencia exacta y busca tanto en nombre del proyecto, persona de contacto
+    //o palabra clave
 
     $query .= " ORDER BY id";
 
@@ -1303,10 +1268,12 @@ function buscar_proyectos_ajax() {
         array_push($params, $comunidad);
     }
 
-    $resultados = empty($params) ? $wpdb->get_results($query) : $wpdb->get_results($wpdb->prepare($query, ...$params));
+    $resultados = empty($params) ? $wpdb->get_results($query) : $wpdb->get_results($wpdb->prepare($query, ...$params)); // ejecucion de la consulta, si no hay filtros ejecuta sin preparar
+    // 
 
     if ($resultados) {
         foreach ($resultados as $index => $proyecto) {
+            if (empty(trim($proyecto->nombre_proyecto))) continue;
             // Extraer el número de línea de actuación
             $linea_numero = '-';
             if (preg_match('/Línea de Actuación\s*(\d+):/i', $proyecto->linea_actuacion, $matches)) {
@@ -1316,7 +1283,7 @@ function buscar_proyectos_ajax() {
             $titles_map = [
                 'Ciencia de datos para la emergencia de inteligencia en el medio marino y litoral a través de la monitorización ambiental' => 'CIENCIADEDATOS',
                 'OMEMAR' => 'OMEMAR',
-                'CEAS' => 'CEAS',
+                'Clasificador de Eventos Acústicos Submarinos' => 'CEAS',
                 // Añade más si hace falta
             ];
 
@@ -1324,7 +1291,7 @@ function buscar_proyectos_ajax() {
             $ficha_url = $title_param ? "http://localhost/thinkin/index.php/resultados/radar-de-innovacion/?comunidad=all&linea=all&tematica=all&title={$title_param}" : '';
 
             
-
+// cada resultado sera una fila 
             echo '<tr class="fila-proyecto" 
                     data-contacto="' . esc_attr($proyecto->persona_contacto) . '" 
                     data-institucion="' . esc_attr($proyecto->institucion) . '" 
@@ -1352,7 +1319,7 @@ add_action('wp_ajax_nopriv_buscar_proyectos', 'buscar_proyectos_ajax');
 
 
 //=================================================================================================================================
-//En esta función es donde obtiene los filtros de la tabla
+//En esta función es donde obtiene los filtros de la tabla, es decir aqui mira la tabla y coge las comunidades autonomas que haya para hacer el select
 
 function obtener_comunidades_ajax() {
     global $wpdb;
